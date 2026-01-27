@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magical Garden for you Beautiful </title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Great+Vibes&family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Playfair Display', serif;
+        }
+
+        #canvas-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .garden-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+            perspective: 1200px;
+            overflow: hidden;
+        }
+
+        /* UI Elements */
+        .title-card {
+            font-family: 'Cinzel', serif;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            transform: translateZ(0); /* Hardware accel */
+        }
+
+        .message-text {
+            font-family: 'Great Vibes', cursive;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* Enhanced Flower Styles */
+        .flower-wrapper {
+            position: absolute;
+            bottom: -30px; /* Hide the very bottom of stem */
+            transform-origin: bottom center;
+            pointer-events: none;
+            z-index: 20;
+            will-change: transform;
+        }
+
+        .stem {
+            width: 4px;
+            background: linear-gradient(to right, #0f3d24, #2d6a4f, #1a472a);
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 4px;
+            transform-origin: bottom center;
+            box-shadow: inset 1px 0 3px rgba(0,0,0,0.5);
+            z-index: 1;
+        }
+
+        .flower-head {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            transform: translateX(-50%);
+            z-index: 2;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));
+        }
+
+        /* Multi-layer Petals */
+        .petal {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform-origin: bottom center;
+            /* More organic shape */
+            border-radius: 50% 50% 50% 50% / 70% 70% 30% 30%;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2), 0 0 10px rgba(255,255,255,0.05);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            mix-blend-mode: hard-light; /* Makes colors pop against dark background */
+        }
+
+        /* Inner texture for petals */
+        .petal::after {
+            content: '';
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            width: 1px;
+            height: 60%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-50%);
+            border-radius: 1px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1), -2px 0 5px rgba(0,0,0,0.1);
+            filter: blur(1px);
+        }
+
+        .flower-center {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            /* Glowing center */
+            background: radial-gradient(circle at 30% 30%, #fff, #ffd700, #ff8c00);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.9), 
+                        0 0 30px rgba(255, 140, 0, 0.4),
+                        inset -2px -2px 5px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        .leaf {
+            position: absolute;
+            background: linear-gradient(135deg, #1e4a36, #40916c);
+            border-radius: 0 100% 5% 100%;
+            box-shadow: 1px 2px 5px rgba(0,0,0,0.3);
+            transform-origin: 0 50%; /* Attach to stem */
+            opacity: 0;
+        }
+
+        /* Magical Particles */
+        .sparkle {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+            mix-blend-mode: screen;
+            z-index: 100;
+            animation: fadeOut 1s linear forwards;
+        }
+
+        /* Animations */
+        @keyframes grow-up {
+            from { height: 0; }
+            to { height: var(--final-height); }
+        }
+
+        @keyframes bloom-petal {
+            0% { transform: translateX(-50%) rotate(0deg) scale(0); opacity: 0; }
+            100% { transform: translateX(-50%) rotate(var(--rotate)) scale(1); opacity: 1; }
+        }
+
+        @keyframes leaf-grow {
+            0% { transform: scale(0) rotate(var(--rotate)); opacity: 0; }
+            100% { transform: scale(1) rotate(var(--rotate)); opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { filter: brightness(1) drop-shadow(0 0 5px rgba(255,255,255,0.2)); }
+            50% { filter: brightness(1.2) drop-shadow(0 0 15px rgba(255,255,255,0.5)); }
+        }
+
+    </style>
+</head>
+<body class="text-white selection:bg-pink-500 selection:text-white">
+    <!-- Background Canvas for Stars/Nebula -->
+    <canvas id="canvas-bg"></canvas>
+
+    <!-- Main Container -->
+    <div class="garden-container flex flex-col items-center justify-start pt-24" id="garden">
+        
+        <!-- Atmosphere Overlay -->
+        <div class="absolute bottom-0 left-0 w-full h-48 bg-gradient-to-t from-black via-[#000000aa] to-transparent pointer-events-none z-30"></div>
+        <div class="absolute top-0 left-0 w-full h-full bg-radial-gradient from-transparent to-[#000000aa] pointer-events-none z-5"></div>
+
+        <!-- Glassmorphism Title Card -->
+        <div class="title-card px-12 py-10 rounded-3xl text-center z-50 animate-[fadeIn_2s_ease-out] hover:scale-105 transition-transform duration-700">
+            <h1 class="text-5xl md:text-7xl font-bold tracking-widest text-transparent bg-clip-text bg-gradient-to-br from-white via-pink-200 to-purple-200 mb-3 drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">
+                MAGICAL GARDEN
+            </h1>
+            <p class="text-2xl md:text-3xl text-pink-100 mt-4 opacity-90 message-text">
+                Wah bouquet a flowers fih u  beautiful &#128580;
+            </p>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const CONFIG = {
+            starCount: 250,
+            flowerCount: 16,
+            colors: [
+                // Pink/Rose
+                { 
+                    petals: ['#ff9ff3', '#f368e0', '#ffcce7'], 
+                    center: '#feca57', 
+                    type: 'rose'
+                },
+                // Blue/Magic
+                { 
+                    petals: ['#54a0ff', '#2e86de', '#a9d3ff'], 
+                    center: '#ff9ff3', 
+                    type: 'magic'
+                },
+                // Red/Passion
+                { 
+                    petals: ['#ff6b6b', '#ee5253', '#ff9e9e'], 
+                    center: '#feca57', 
+                    type: 'rose'
+                },
+                // Purple/Royal
+                { 
+                    petals: ['#a29bfe', '#6c5ce7', '#d6d1ff'], 
+                    center: '#fab1a0', 
+                    type: 'magic'
+                },
+                // Gold/Sun
+                { 
+                    petals: ['#feca57', '#ff9f43', '#ffeaa7'], 
+                    center: '#ff6b6b', 
+                    type: 'daisy'
+                },
+                // Cyan/Ice
+                { 
+                    petals: ['#48dbfb', '#0abde3', '#c7ecee'], 
+                    center: '#f368e0', 
+                    type: 'magic'
+                }
+            ]
+        };
+
+        // --- Advanced Canvas Background (Nebula & Stars) ---
+        const canvas = document.getElementById('canvas-bg');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        let particles = [];
+        let nebulaClouds = [];
+
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            initNebula();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        class Star {
+            constructor(isFirefly = false) {
+                this.isFirefly = isFirefly;
+                this.init();
+            }
+
+            init() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() * (this.isFirefly ? 2.5 : 1.2);
+                this.baseAlpha = Math.random() * 0.8 + 0.2;
+                this.alpha = this.baseAlpha;
+                this.twinkleSpeed = Math.random() * 0.05 + 0.01;
+                this.twinkleDir = 1;
+                
+                // Firefly movement
+                this.speedX = (Math.random() - 0.5) * (this.isFirefly ? 1.5 : 0.05);
+                this.speedY = (Math.random() - 0.5) * (this.isFirefly ? 1.5 : 0.05);
+                this.t = Math.random() * Math.PI * 2;
+                
+                this.color = this.isFirefly ? 
+                    `hsl(${40 + Math.random() * 40}, 100%, 70%)` : 
+                    `rgba(255, 255, 255, 1)`;
+            }
+
+            update() {
+                // Movement
+                if (this.isFirefly) {
+                    this.t += 0.03;
+                    this.x += Math.sin(this.t) * 0.8 + this.speedX;
+                    this.y += Math.cos(this.t) * 0.8 + this.speedY;
+                    
+                    // Firefly pulse
+                    this.alpha = 0.5 + Math.sin(this.t * 3) * 0.4;
+                } else {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                    
+                    // Star twinkle
+                    this.alpha += this.twinkleSpeed * this.twinkleDir;
+                    if (this.alpha > this.baseAlpha || this.alpha < 0.2) this.twinkleDir *= -1;
+                }
+
+                // Wrap around
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                
+                if (this.isFirefly) {
+                    ctx.fillStyle = this.color;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = this.color;
+                    ctx.globalAlpha = this.alpha;
+                } else {
+                    ctx.fillStyle = "white";
+                    ctx.shadowBlur = this.alpha > 0.6 ? 4 : 0;
+                    ctx.shadowColor = "white";
+                    ctx.globalAlpha = this.alpha * (Math.random() > 0.99 ? 1.5 : 1); // Random bright twinkle
+                }
+                
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function initNebula() {
+            nebulaClouds = [];
+            // Create a few large color splashes
+            const colors = ['#2e003e', '#0f0524', '#001830', '#1a0b2e'];
+            for(let i=0; i<5; i++) {
+                nebulaClouds.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    radius: 300 + Math.random() * 400,
+                    color: colors[i % colors.length],
+                    vx: (Math.random() - 0.5) * 0.2,
+                    vy: (Math.random() - 0.5) * 0.2
+                });
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < CONFIG.starCount; i++) {
+                particles.push(new Star(false));
+            }
+            for (let i = 0; i < 40; i++) {
+                particles.push(new Star(true));
+            }
+        }
+
+        function drawNebula() {
+            nebulaClouds.forEach(cloud => {
+                cloud.x += cloud.vx;
+                cloud.y += cloud.vy;
+                
+                // Bounce slowly
+                if(cloud.x < -200 || cloud.x > width + 200) cloud.vx *= -1;
+                if(cloud.y < -200 || cloud.y > height + 200) cloud.vy *= -1;
+
+                const g = ctx.createRadialGradient(cloud.x, cloud.y, 0, cloud.x, cloud.y, cloud.radius);
+                g.addColorStop(0, cloud.color);
+                g.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = g;
+                ctx.globalAlpha = 0.4; // Subtle
+                ctx.fillRect(0, 0, width, height);
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function animateCanvas() {
+            ctx.clearRect(0,0,width,height);
+            
+            // Deep background
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
+            bgGradient.addColorStop(0, '#050210');
+            bgGradient.addColorStop(1, '#000000');
+            ctx.fillStyle = bgGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            drawNebula();
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            requestAnimationFrame(animateCanvas);
+        }
+
+        resizeCanvas();
+        initParticles();
+        animateCanvas();
+
+        // --- Advanced Garden Generation ---
+        const garden = document.getElementById('garden');
+        let flowers = [];
+
+        function createFlower(index) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flower-wrapper';
+            
+            // Distributed positioning
+            const totalWidth = window.innerWidth;
+            const step = totalWidth / CONFIG.flowerCount;
+            const basePos = step * index + (step / 2);
+            const randomOffset = (Math.random() - 0.5) * step * 0.6;
+            const xPos = basePos + randomOffset;
+            
+            wrapper.style.left = `${xPos}px`;
+            
+            // Depth and Scale
+            // Middle flowers are larger and in front, edges slightly smaller
+            const distFromCenter = Math.abs((totalWidth/2) - xPos);
+            const normalizedDist = distFromCenter / (totalWidth/2);
+            const scaleBase = 1.0 - (normalizedDist * 0.3); // Center = 1.0, Edge = 0.7
+            
+            const randomScale = 0.8 + Math.random() * 0.4;
+            const finalScale = scaleBase * randomScale * 0.9; // Overall size adj
+            
+            const zIndex = Math.floor(finalScale * 100);
+            const blurAmount = finalScale < 0.7 ? 2 : 0;
+
+            wrapper.style.transform = `scale(${finalScale})`;
+            wrapper.style.zIndex = zIndex;
+            if(blurAmount > 0) wrapper.style.filter = `blur(${blurAmount}px)`;
+
+            // Stem
+            const stem = document.createElement('div');
+            stem.className = 'stem';
+            // Randomize height slightly
+            const height = 200 + Math.random() * 250;
+            stem.style.setProperty('--final-height', `${height}px`);
+            stem.style.height = '0';
+            stem.style.animation = `grow-up 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards ${index * 0.1}s`;
+
+            // Leaves
+            const leafCount = 2 + Math.floor(Math.random() * 3);
+            for(let i=0; i<leafCount; i++) {
+                const leaf = document.createElement('div');
+                leaf.className = 'leaf';
+                leaf.style.width = `${40 + Math.random() * 20}px`;
+                leaf.style.height = `${20 + Math.random() * 10}px`;
+                
+                const side = i % 2 === 0 ? -1 : 1;
+                const bottomPercent = 20 + (i * 20) + Math.random() * 10;
+                
+                leaf.style.bottom = `${bottomPercent}%`;
+                leaf.style.left = '50%';
+                
+                const rotate = side * (40 + Math.random() * 20);
+                // Correct leaf transform origin logic in CSS, here we just set var
+                leaf.style.setProperty('--rotate', `${rotate}deg`);
+                leaf.style.animation = `leaf-grow 1s ease-out forwards ${index * 0.1 + 1.5 + (i * 0.3)}s`;
+                
+                stem.appendChild(leaf);
+            }
+
+            // Flower Head
+            const head = document.createElement('div');
+            head.className = 'flower-head';
+            head.style.animation = `pulse-glow 4s infinite ease-in-out ${Math.random() * 4}s`;
+
+            // Config & Colors
+            const scheme = CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)];
+            
+            // Center
+            const center = document.createElement('div');
+            center.className = 'flower-center';
+            const centerSize = 16 + Math.random() * 8;
+            center.style.width = `${centerSize}px`;
+            center.style.height = `${centerSize}px`;
+            center.style.background = `radial-gradient(circle at 30% 30%, ${scheme.center}, #e58e26)`;
+            center.style.opacity = '0';
+            center.style.animation = `fade-in 0.5s ease forwards ${index * 0.1 + 3}s`;
+
+            // Define Layers of Petals for 3D effect
+            // Layer 1 (Back/Largest), Layer 2 (Middle), Layer 3 (Front/Smallest)
+            const layers = 3;
+            const petalsPerLayer = [8, 6, 5]; 
+            const sizeMultipliers = [1.0, 0.8, 0.5];
+            const colorIndices = [0, 1, 2]; // Map to scheme.petals
+
+            for(let l=0; l<layers; l++) {
+                const count = petalsPerLayer[l];
+                const angleStep = 360 / count;
+                const startAngle = (l * 15); // Offset layers
+
+                for(let p=0; p<count; p++) {
+                    const petal = document.createElement('div');
+                    petal.className = 'petal';
+                    
+                    const pWidth = (30 + Math.random() * 10) * sizeMultipliers[l];
+                    const pHeight = (50 + Math.random() * 15) * sizeMultipliers[l];
+                    
+                    petal.style.width = `${pWidth}px`;
+                    petal.style.height = `${pHeight}px`;
+                    
+                    // Gradient for texture
+                    const color1 = scheme.petals[l % scheme.petals.length];
+                    const color2 = scheme.petals[(l+1) % scheme.petals.length];
+                    petal.style.background = `linear-gradient(to top, ${color1}, ${color2})`;
+                    
+                    const rot = startAngle + (p * angleStep);
+                    petal.style.setProperty('--rotate', `${rot}deg`);
+                    petal.style.zIndex = l; // Layering
+                    
+                    // Staggered bloom
+                    const delay = index * 0.1 + 2.5 + (l * 0.2) + (p * 0.05);
+                    petal.style.animation = `bloom-petal 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards ${delay}s`;
+
+                    head.appendChild(petal);
+                }
+            }
+
+            head.appendChild(center);
+            stem.appendChild(head);
+            wrapper.appendChild(stem);
+            garden.appendChild(wrapper);
+
+            // Add simple Keyframe for opacity if missing
+            if(!document.getElementById('fade-anim')) {
+                const style = document.createElement('style');
+                style.id = 'fade-anim';
+                style.textContent = `@keyframes fade-in { to { opacity: 1; } }`;
+                document.head.appendChild(style);
+            }
+
+            flowers.push({
+                element: wrapper,
+                baseX: xPos,
+                scale: finalScale,
+                currentRotation: 0,
+                targetRotation: 0,
+                naturalSwayOffset: Math.random() * 100
+            });
+        }
+
+        // Initialize Garden
+        for(let i=0; i < CONFIG.flowerCount; i++) {
+            createFlower(i);
+        }
+
+        // --- Physics & Interaction ---
+        const mouse = { x: -1000, y: -1000, active: false };
+        
+        // Track mouse/touch
+        const updateMouse = (x, y) => {
+            mouse.x = x;
+            mouse.y = y;
+            mouse.active = true;
+            createSparkle(x, y);
+        };
+
+        window.addEventListener('mousemove', e => updateMouse(e.clientX, e.clientY));
+        window.addEventListener('touchmove', e => updateMouse(e.touches[0].clientX, e.touches[0].clientY));
+        
+        // Sparkle Trail
+        function createSparkle(x, y) {
+            if(Math.random() > 0.3) return; // Don't create on every frame
+            const sparkle = document.createElement('div');
+            sparkle.className = 'sparkle';
+            const size = 2 + Math.random() * 4;
+            sparkle.style.width = `${size}px`;
+            sparkle.style.height = `${size}px`;
+            sparkle.style.left = `${x + (Math.random()-0.5)*20}px`;
+            sparkle.style.top = `${y + (Math.random()-0.5)*20}px`;
+            document.body.appendChild(sparkle);
+            setTimeout(() => sparkle.remove(), 1000);
+        }
+
+        // Click Explosion
+        document.addEventListener('click', (e) => {
+            for(let i=0; i<12; i++) {
+                createSparkle(e.clientX, e.clientY);
+            }
+        });
+
+        // Physics Loop
+        function updatePhysics() {
+            const time = Date.now() * 0.001;
+
+            flowers.forEach(flower => {
+                let windForce = 0;
+                
+                // 1. Natural Wind (Multi-wave sine for complexity)
+                const sway1 = Math.sin(time + flower.naturalSwayOffset) * 2;
+                const sway2 = Math.sin(time * 2.5 + flower.naturalSwayOffset) * 1;
+                windForce = sway1 + sway2;
+
+                // 2. Mouse Interaction (Repulsion)
+                if(mouse.active) {
+                    const rect = flower.element.getBoundingClientRect();
+                    const flowerX = rect.left + rect.width / 2;
+                    const flowerY = rect.bottom - 50; 
+                    
+                    const dx = mouse.x - flowerX;
+                    const dy = mouse.y - flowerY;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    const maxDist = 350;
+
+                    if (dist < maxDist) {
+                        const force = (maxDist - dist) / maxDist; // 0 to 1
+                        const dir = dx < 0 ? 1 : -1;
+                        // Stronger push when closer
+                        windForce += dir * force * 30;
+                    }
+                }
+
+                // Smoothly interpolate towards target
+                flower.currentRotation += (windForce - flower.currentRotation) * 0.08;
+
+                flower.element.style.transform = 
+                    `scale(${flower.scale}) rotate(${flower.currentRotation}deg)`;
+            });
+
+            requestAnimationFrame(updatePhysics);
+        }
+
+        updatePhysics();
+
+    </script>
+</body>
+</html>
